@@ -66,65 +66,42 @@ if st.session_state['processing_result']:
         except Exception as e:
             st.error(f"Error fetching structure: {e}")
 
-    # Export buttons (commented out)
-    # st.header("Export")
-    # col1, col2 = st.columns(2)
-    # with col1:
-    #     if st.button("Export Answer as PDF"):
-    #         params = {
-    #             "document_id": st.session_state['document_id'],
-    #             "question": st.text_input("Enter your question for export", key="export_q"),
-    #             "format": "pdf"
-    #         }
-    #         headers = {}  # Add JWT if needed
-    #         resp = requests.post(f"{BACKEND_UPLOAD_URL.replace('/upload', '/export/answer')}", params=params, headers=headers)
-    #         if resp.status_code == 200:
-    #             with open("answer_export.pdf", "wb") as f:
-    #                 f.write(resp.content)
-    #             st.success("Answer exported as PDF! [Download](answer_export.pdf)")
-    #         else:
-    #             st.error("Export failed.")
-    #     if st.button("Export Structure as PDF"):
-    #         params = {
-    #             "document_id": st.session_state['document_id'],
-    #             "format": "pdf"
-    #         }
-    #         headers = {}  # Add JWT if needed
-    #         resp = requests.get(f"{BACKEND_UPLOAD_URL.replace('/upload', '/export/structure')}", params=params, headers=headers)
-    #         if resp.status_code == 200:
-    #             with open("structure_export.pdf", "wb") as f:
-    #                 f.write(resp.content)
-    #             st.success("Structure exported as PDF! [Download](structure_export.pdf)")
-    #         else:
-    #             st.error("Export failed.")
-    # with col2:
-    #     if st.button("Export Answer as JSON"):
-    #         params = {
-    #             "document_id": st.session_state['document_id'],
-    #             "question": st.text_input("Enter your question for export (JSON)", key="export_q_json"),
-    #             "format": "json"
-    #         }
-    #         headers = {}  # Add JWT if needed
-    #         resp = requests.post(f"{BACKEND_UPLOAD_URL.replace('/upload', '/export/answer')}", params=params, headers=headers)
-    #         if resp.status_code == 200:
-    #             with open("answer_export.json", "wb") as f:
-    #                 f.write(resp.content)
-    #             st.success("Answer exported as JSON! [Download](answer_export.json)")
-    #         else:
-    #             st.error("Export failed.")
-    #     if st.button("Export Structure as JSON"):
-    #         params = {
-    #             "document_id": st.session_state['document_id'],
-    #             "format": "json"
-    #         }
-    #         headers = {}  # Add JWT if needed
-    #         resp = requests.get(f"{BACKEND_UPLOAD_URL.replace('/upload', '/export/structure')}", params=params, headers=headers)
-    #         if resp.status_code == 200:
-    #             with open("structure_export.json", "wb") as f:
-    #                 f.write(resp.content)
-    #             st.success("Structure exported as JSON! [Download](structure_export.json)")
-    #         else:
-    #             st.error("Export failed.")
+    # Summarization button
+    st.header("Summarization")
+    if st.button("Generate Executive Summary"):
+        with st.spinner("Generating summary..."):
+            resp = requests.post("http://localhost:8000/summarize", params={"document_id": st.session_state['document_id']})
+            if resp.status_code == 200:
+                summary = resp.json().get("summary", "No summary returned.")
+                st.success("Executive Summary:")
+                st.write(summary)
+            else:
+                st.error(f"Summarization failed: {resp.text}")
+
+    # Relationship mapping button
+    st.header("Relationship Mapping (Entities Across Documents)")
+    if st.button("Show Entity-Document Relationships"):
+        with st.spinner("Extracting relationships..."):
+            resp = requests.get("http://localhost:8000/relationships")
+            if resp.status_code == 200:
+                data = resp.json()
+                st.write("**Entities and their associated documents:**")
+                for edge in data.get("edges", []):
+                    st.write(f"- {edge['entity']}: {', '.join(edge['documents'])}")
+                # Optional: visualize as a network graph if streamlit_agraph is available
+                try:
+                    from streamlit_agraph import agraph, Node, Edge, Config
+                    nodes = [Node(id=entity, label=entity) for entity in data.get("entities", [])]
+                    doc_nodes = [Node(id=doc_id, label=doc_id, shape="box") for edge in data.get("edges", []) for doc_id in edge["documents"]]
+                    all_nodes = {n.id: n for n in nodes + doc_nodes}
+                    edges = [Edge(source=edge["entity"], target=doc_id) for edge in data.get("edges", []) for doc_id in edge["documents"]]
+                    config = Config(width=800, height=400, directed=False, physics=True)
+                    st.subheader("Entity-Document Network Graph")
+                    agraph(list(all_nodes.values()), edges, config)
+                except ImportError:
+                    st.info("Install streamlit-agraph for network graph visualization: pip install streamlit-agraph")
+            else:
+                st.error(f"Relationship mapping failed: {resp.text}")
 
     st.header("2. Ask a question about your document")
     st.write(f"Document ID: `{st.session_state['document_id']}`")

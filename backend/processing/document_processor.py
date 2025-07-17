@@ -57,6 +57,22 @@ def process_document(file_path: str) -> Dict[str, Any]:
     if ext not in SUPPORTED_FORMATS:
         return {"error": f"Unsupported file type: {ext}"}
 
+    # Special handling for image formats
+    if ext in [".png", ".jpg", ".jpeg"]:
+        return {
+            "num_chunks": 0,
+            "num_images": 1,
+            "num_charts": 0,
+            "num_tables": 0,
+            "num_code_blocks": 0,
+            "chunks": [],
+            "text_preview": [],
+            "image_paths": [file_path],
+            "charts": [],
+            "sections": [],
+            "status": "image_uploaded"
+        }
+
     # Special handling for new formats
     if ext == ".md":
         with open(file_path, "r", encoding="utf-8") as f:

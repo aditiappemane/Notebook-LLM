@@ -60,12 +60,38 @@ async def upload_file(file: UploadFile = File(...)):
 async def query_document(document_id: str, question: str):
     doc = DOCUMENT_STORE.get(document_id)
     if not doc:
+        print("[QUERY] Document not found for ID:", document_id)
         raise HTTPException(status_code=404, detail="Document not found")
     processing = doc["processing"]
-    # Retrieve relevant chunks from Chroma (vector search)
-    chroma_results = query_chroma(question, n_results=3, metadata_filter={"document_id": document_id})
-    context_chunks = chroma_results.get("documents", [[]])[0]
-    context_text = "\n".join(context_chunks)
+    # If this is an image-only document, send the image directly to Gemini
+    if processing.get("status") == "image_uploaded":
+        print("[QUERY] Image-only document detected. Sending image to Gemini.")
+        image_paths = processing.get("image_paths", [])
+        images_b64 = []
+        for img_path in image_paths:
+            try:
+                with open(img_path, "rb") as img_file:
+                    img_bytes = img_file.read()
+                    img_b64 = base64.b64encode(img_bytes).decode("utf-8")
+                    images_b64.append(img_b64)
+            except Exception as e:
+                print(f"[QUERY] Failed to read image {img_path}: {e}")
+                continue
+        print("[QUERY] Calling Gemini for image query...")
+        gemini_response = query_gemini(question, images=images_b64)
+        print("[QUERY] Gemini response received.")
+        answer = gemini_response.get("candidates", [{}])[0].get("content", {}).get("parts", [{}])[0].get("text", "No answer from Gemini.")
+        return {"answer": answer}
+    # For text documents, log and handle each step
+    try:
+        print("[QUERY] Performing ChromaDB vector search...")
+        chroma_results = query_chroma(question, n_results=3, metadata_filter={"document_id": document_id})
+        print("[QUERY] ChromaDB search complete.")
+        context_chunks = chroma_results.get("documents", [[]])[0]
+        context_text = "\n".join(context_chunks)
+    except Exception as e:
+        print(f"[QUERY] ChromaDB error: {e}")
+        return {"error": f"ChromaDB error: {e}"}
     # Gather images as base64
     image_paths = processing.get("image_paths", [])
     images_b64 = []
@@ -76,11 +102,17 @@ async def query_document(document_id: str, question: str):
                 img_b64 = base64.b64encode(img_bytes).decode("utf-8")
                 images_b64.append(img_b64)
         except Exception as e:
+            print(f"[QUERY] Failed to read image {img_path}: {e}")
             continue
-    # Call Gemini ONCE for the original question
-    gemini_response = query_gemini(f"Context: {context_text}\n\nQuestion: {question}", images=images_b64)
-    answer = gemini_response.get("candidates", [{}])[0].get("content", {}).get("parts", [{}])[0].get("text", "No answer from Gemini.")
-    return {"answer": answer}
+    try:
+        print("[QUERY] Calling Gemini for text+image query...")
+        gemini_response = query_gemini(f"Context: {context_text}\n\nQuestion: {question}", images=images_b64)
+        print("[QUERY] Gemini response received.")
+        answer = gemini_response.get("candidates", [{}])[0].get("content", {}).get("parts", [{}])[0].get("text", "No answer from Gemini.")
+        return {"answer": answer}
+    except Exception as e:
+        print(f"[QUERY] Gemini API error: {e}")
+        return {"error": f"Gemini API error: {e}"}
 
 @app.get("/structure")
 def get_document_structure(document_id: str):
@@ -177,4 +209,47 @@ def export_structure(document_id: str, format: str = "json"):
         pdf.output(filename)
         return FileResponse(filename, media_type="application/pdf", filename=filename)
     else:
-        return {"error": "Unsupported format or PDF export not available"} 
+        return {"error": "Unsupported format or PDF export not available"}
+
+@app.post("/summarize")
+async def summarize_document(document_id: str):
+    doc = DOCUMENT_STORE.get(document_id)
+    if not doc:
+        raise HTTPException(status_code=404, detail="Document not found")
+    processing = doc["processing"]
+    # Get the top N chunks (or all if small)
+    chunks = processing.get("chunks", [])
+    top_chunks = [c["text"] for c in chunks[:10]]  # Adjust N as needed
+    context_text = "\n".join(top_chunks)
+    prompt = (
+        "You are an expert research assistant. Read the following document content and generate an executive summary that covers the main points, key findings, and any important tables, images, or code snippets.\n\n"
+        f"Document Content:\n{context_text}\n\nExecutive Summary:"
+    )
+    gemini_response = query_gemini(prompt)
+    summary = gemini_response.get("candidates", [{}])[0].get("content", {}).get("parts", [{}])[0].get("text", "No summary from Gemini.")
+    return {"summary": summary}
+
+@app.get("/relationships")
+def get_relationships():
+    # Map: entity -> set of document_ids
+    entity_map = {}
+    for doc_id, doc in DOCUMENT_STORE.items():
+        processing = doc["processing"]
+        chunks = processing.get("chunks", [])
+        for chunk in chunks:
+            text = chunk["text"]
+            # Use Gemini to extract entities/concepts from the chunk
+            prompt = (
+                "Extract a list of key entities, concepts, or topics mentioned in the following text. "
+                "Return only a comma-separated list.\n\nText:\n" + text + "\nEntities:"
+            )
+            gemini_response = query_gemini(prompt)
+            entity_str = gemini_response.get("candidates", [{}])[0].get("content", {}).get("parts", [{}])[0].get("text", "")
+            entities = [e.strip() for e in entity_str.split(",") if e.strip()]
+            for entity in entities:
+                if entity not in entity_map:
+                    entity_map[entity] = set()
+                entity_map[entity].add(doc_id)
+    # Convert sets to lists for JSON serialization
+    edges = [{"entity": entity, "documents": list(doc_ids)} for entity, doc_ids in entity_map.items()]
+    return {"entities": list(entity_map.keys()), "edges": edges} 
