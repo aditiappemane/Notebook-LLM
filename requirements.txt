@@ -1,0 +1,13 @@
+fastapi
+uvicorn
+streamlit
+python-multipart
+httpx
+pydantic
+unstructured
+openpyxl
+python-docx
+python-pptx
+pandas
+PyMuPDF
+# Add Gemini API SDK when available 

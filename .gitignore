@@ -1,0 +1,103 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# C extensions
+*.so
+
+# Distribution / packaging
+.Python
+env/
+venv/
+ENV/
+.venv/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Installer logs
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Unit test / coverage reports
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+.hypothesis/
+.pytest_cache/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# pyenv
+.python-version
+
+# mypy
+.mypy_cache/
+.dmypy.json
+
+# Pyre type checker
+.pyre/
+
+# VS Code
+.vscode/
+
+# Streamlit
+.streamlit/
+
+# FastAPI/Starlette
+instance/
+
+# Local data
+*.db
+*.sqlite3
+*.log
+*.pot
+*.mo
+*.pkl
+*.h5
+*.hdf5
+*.csv
+*.tsv
+*.xls
+*.xlsx
+*.pptx
+*.docx
+*.pdf
+*.json
+*.yaml
+*.yml
+*.zip
+*.tar.gz
+*.tmp
+
+# Environment variables
+.env*
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# ChromaDB data
+chroma_data/
+
+# NLTK data
+nltk_data/ 
