@@ -13,7 +13,7 @@ A production-ready multimodal RAG (Retrieval-Augmented Generation) system inspir
 - **FastAPI backend**
 
 ## Architecture
-```mermaid
+
 graph TD
   A[User/Researcher] -->|Upload/Query| B[Streamlit Frontend]
   B -->|API| C[FastAPI Backend]
@@ -82,8 +82,3 @@ streamlit run app.py
 - Add/maintain docstrings and comments
 - Run tests before submitting
 
-## License
-[Add your license here]
-
-## Contact
-[Your name/contact info] 
